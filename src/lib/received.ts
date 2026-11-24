@@ -1,6 +1,8 @@
 /**
  * Dividends actually received, from the host's DIVIDEND activities. Pure aggregation.
  */
+import { majorCurrency, toMajorFactor } from "./currency.js";
+
 /** "YYYY-MM" bucket in UTC (same as projection.monthKey; duplicated to keep this module standalone for tests). */
 const monthKey = (unix: number): string => {
   const d = new Date(unix * 1000);
@@ -15,6 +17,79 @@ export interface ReceivedDividend {
   net: number;
   /** net + tax withheld, base currency */
   gross: number;
+}
+
+export interface DividendActivityLike {
+  activityType: string;
+  date: Date | string | number;
+  amount?: string | number | null;
+  tax?: string | number | null;
+  /** activity currency -> ACCOUNT currency (a valuation override, usually empty) */
+  fxRate?: string | number | null;
+  currency: string;
+  accountCurrency?: string | null;
+  assetSymbol?: string;
+}
+
+/**
+ * Rate from one major currency to the base currency on a given day (YYYY-MM-DD),
+ * or null when unknown.
+ */
+export type RateLookup = (fromMajor: string, isoDate: string) => number | null;
+
+const DAY = 86_400;
+
+export function activityDay(date: Date | string | number): number | null {
+  const t = date instanceof Date ? date.getTime() : typeof date === "number" ? date : Date.parse(date);
+  return Number.isFinite(t) ? Math.floor(t / 1000 / DAY) * DAY : null;
+}
+
+export const isoDay = (unix: number): string => new Date(unix * 1000).toISOString().slice(0, 10);
+
+/**
+ * DIVIDEND activities -> received events in base currency, converted at the rate of the
+ * day they were received (as the host's own income report does). Order of sources:
+ *   1. same currency as base (after minor-unit normalization) -> no conversion
+ *   2. `rateFor(currency, day)` (host FX history)
+ *   3. the activity's own fxRate, only when the account currency is the base currency
+ *      (fxRate converts to the ACCOUNT currency, not to base)
+ * Anything else is left out and its currency reported, rather than counted 1:1.
+ */
+export function receivedFromActivities(
+  activities: DividendActivityLike[],
+  baseCurrency: string,
+  rateFor: RateLookup,
+): { received: ReceivedDividend[]; unconverted: string[] } {
+  const baseMajor = majorCurrency(baseCurrency);
+  const out: ReceivedDividend[] = [];
+  const unconverted = new Set<string>();
+  for (const a of activities) {
+    if (a.activityType !== "DIVIDEND") continue;
+    const net = Number(a.amount ?? 0);
+    if (!Number.isFinite(net) || net <= 0) continue;
+    const tax = Number(a.tax ?? 0) || 0;
+    const date = activityDay(a.date);
+    if (date == null) continue;
+
+    const major = majorCurrency(a.currency);
+    const unit = toMajorFactor(a.currency);
+    let mult: number | null = null;
+    if (major === baseMajor) mult = unit;
+    else {
+      const r = rateFor(major, isoDay(date));
+      if (r != null && r > 0) mult = unit * r;
+      else {
+        const fx = Number(a.fxRate ?? NaN);
+        if (a.accountCurrency && majorCurrency(a.accountCurrency) === baseMajor && Number.isFinite(fx) && fx > 0) mult = fx;
+      }
+    }
+    if (mult == null) {
+      unconverted.add(a.currency);
+      continue;
+    }
+    out.push({ date, symbol: a.assetSymbol ?? "?", net: net * mult, gross: (net + tax) * mult });
+  }
+  return { received: out.sort((x, y) => x.date - y.date), unconverted: [...unconverted].sort() };
 }
 
 export interface MonthBucket {

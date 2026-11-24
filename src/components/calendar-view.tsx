@@ -213,6 +213,11 @@ export function CalendarView({ data, hidden }: Props) {
         <Stat compact={narrow} title={t("stats.received12")} value={fmtMoney(received12)} hint={t("stats.received12Hint", { count: received12Count })} />
         <Stat compact={narrow} title={t("stats.receivedTotal")} value={fmtMoney(receivedTotal)} hint={firstReceived ? t("stats.receivedTotalHint", { date: fmtDate(firstReceived) }) : undefined} />
       </div>
+      {data.unconvertedCurrencies?.length ? (
+        <p className="text-muted-foreground text-xs">
+          {t("unconverted", { currencies: data.unconvertedCurrencies.join(", "), base: ccy })}
+        </p>
+      ) : null}
 
       {goal > 0 && (
         <Card>

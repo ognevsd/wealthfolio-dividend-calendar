@@ -14,6 +14,7 @@ export const translations: AddonTranslationResources = {
     emptyTitle: "No dividend-paying holdings",
     emptyDesc: "Add equity or ETF holdings with a market quote and come back.",
     noHistory: "No dividend history found for your holdings.",
+    unconverted: "Dividends received in {{currencies}} are left out of the received totals: no exchange rate to {{base}} was found.",
     stats: {
       next12: "Next 12 months (net)",
       next12Gross: "gross {{value}}",
@@ -142,6 +143,7 @@ export const translations: AddonTranslationResources = {
     emptyTitle: "No hay posiciones que paguen dividendo",
     emptyDesc: "Añade acciones o ETF con cotización y vuelve.",
     noHistory: "No hay histórico de dividendos para tus posiciones.",
+    unconverted: "Los dividendos recibidos en {{currencies}} no se incluyen en los totales recibidos: no se encontró tipo de cambio a {{base}}.",
     stats: {
       next12: "Próximos 12 meses (neto)",
       next12Gross: "bruto {{value}}",
